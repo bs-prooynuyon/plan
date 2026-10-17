@@ -75,7 +75,12 @@ export function buildReportHtml({ kind, studentName, primary, sessions, exams, t
 
   const rangeExams = exams.filter((item) => inRange(`${item.date}T12:00:00`)).map((exam) => ({ exam, net: exam.results.reduce((s, r) => s + r.net, 0), correct: exam.results.reduce((s, r) => s + r.correct, 0), wrong: exam.results.reduce((s, r) => s + r.wrong, 0) })).sort((a, b) => b.net - a.net);
   const examRows = rangeExams.length
-    ? rangeExams.map((row, index) => `<tr><td>${index + 1}.</td><td>${esc(row.exam.title)}</td><td>${row.correct} D / ${row.wrong} Y</td><td><b>${row.net.toFixed(1)}</b> net</td></tr>`).join('')
+    ? rangeExams.map((row, index) => {
+      const perSubject = row.exam.results.length
+        ? `<tr><td></td><td colspan="3"><table class="sub"><tr><th>Ders</th><th>Doğru</th><th>Yanlış</th><th>Net</th></tr>${row.exam.results.map((r) => `<tr><td>${esc(r.subject)}</td><td>${r.correct}</td><td>${r.wrong}</td><td>${r.net.toFixed(1)}</td></tr>`).join('')}</table></td></tr>`
+        : '';
+      return `<tr><td>${index + 1}.</td><td><b>${esc(row.exam.title)}</b></td><td>${row.correct} D / ${row.wrong} Y</td><td><b>${row.net.toFixed(1)}</b> net</td></tr>${perSubject}`;
+    }).join('')
     : '<tr><td colspan="4" class="muted">Bu dönemde deneme eklenmedi.</td></tr>';
   const examTotal = rangeExams.length ? `<div class="muted" style="margin-top:6px">Toplam: ${rangeExams.reduce((s, r) => s + r.correct, 0)} doğru, ${rangeExams.reduce((s, r) => s + r.wrong, 0)} yanlış</div>` : '';
   const subjectRows = bySubject.size ? [...bySubject.entries()].map(([name, v]) => `<tr><td>${esc(name)}</td><td>${v.solved}</td><td>${v.correct}</td><td>${v.wrong}</td><td>${v.blank}</td></tr>`).join('') : '<tr><td colspan="5" class="muted">Bu dönemde soru girilmedi.</td></tr>';
@@ -95,13 +100,14 @@ h1{margin:0;font-size:24px;color:${primary}} h2{font-size:15px;margin:22px 0 8px
 .col{flex:1;text-align:center}.bar{background:${primary};border-radius:4px 4px 0 0}.v{font-size:11px}.d{font-size:${kind === 'weekly' ? 11 : 7}px;color:#888;padding-top:3px}
 table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:6px 4px;border-bottom:1px solid #eee;text-align:left}
 ul{margin:0;padding-left:18px;font-size:13px;line-height:1.7}
+table.sub{font-size:12px;margin:0 0 8px}table.sub th{color:#888;font-weight:600}
 </style></head><body>
 <h1>${kind === 'weekly' ? 'Haftalık' : 'Aylık'} Özet</h1><div class="muted">${esc(studentName || 'Öğrenci')} · ${range}</div>
 <h2>Çalışma süresi</h2><div class="big">${Math.floor(totalMinutes / 60)} sa ${totalMinutes % 60} dk</div>
 <div class="chart">${bars}</div><div class="muted" style="font-size:11px;margin-top:4px">Günlere göre dakika</div>
 <h2>Çözülen sorular</h2><div><b>${totals.solved}</b> soru · <b>${totals.correct}</b> doğru · <b>${totals.wrong}</b> yanlış · <b>${totals.blank}</b> boş</div>
 <table style="margin-top:6px"><tr><th>Ders</th><th>Soru</th><th>Doğru</th><th>Yanlış</th><th>Boş</th></tr>${subjectRows}</table>
-<h2>Denemeler (net sıralaması)</h2><table>${examRows}</table>${examTotal}
+<h2>Denemeler (net sıralaması, ders ders doğru / yanlış)</h2><table>${examRows}</table>${examTotal}
 <h2>Çalışılan konular ve çözülen sorular (${studied.length} konu)</h2>
 <table><tr><th>Ders</th><th>Konu</th><th>Soru</th><th>Doğru</th><th>Yanlış</th><th>Boş</th></tr>${topicRows}</table>
 </body></html>`;
