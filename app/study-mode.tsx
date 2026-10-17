@@ -66,16 +66,13 @@ export default function StudyModeScreen() {
     if (!PlanimLock.hasOverlayAccess()) absent.push('Diğer uygulamaların üzerinde göster');
     setMissing(absent);
     if (absent.length) { setLockOk(false); return; }
-    // Kilitlenecek uygulama seçilmemişse, telefonda yüklü yaygın dikkat dağıtıcıları kilitle.
-    let blocked = settings.lockedApps;
-    if (!blocked.length) {
-      const installed = new Set(PlanimLock.getLaunchableApps().map((app) => app.pkg));
-      blocked = CONFIG.commonDistractionApps.map((app) => app.pkg).filter((pkg) => installed.has(pkg));
-    }
+    // "Açık kalacak" olarak seçilenler (ve telefon, mesajlar, müzik) dışındaki her uygulama kilitlenir.
+    const allowed = Array.from(new Set([...settings.alwaysAllowedApps, ...PlanimLock.getEmergencyPackages(), ...CONFIG.musicApps]));
+    const blocked = PlanimLock.getLaunchableApps().map((app) => app.pkg).filter((pkg) => !allowed.includes(pkg));
     setNoApps(blocked.length === 0);
     PlanimLock.startLock({
       blocked,
-      allowed: Array.from(new Set([...settings.alwaysAllowedApps, ...PlanimLock.getEmergencyPackages(), ...CONFIG.musicApps])),
+      allowed,
       friend: settings.friendApps.length ? settings.friendApps : CONFIG.friendStudyDefaults,
       endAt: target,
       lessonName: title,
@@ -135,7 +132,7 @@ export default function StudyModeScreen() {
     {onBreak ? <View style={{ alignItems: 'center', gap: 10 }}><Text style={{ color: colors.warning, fontWeight: '800', fontSize: 16 }}>Mola bitmesine {Math.floor(breakLeft / 60)}:{String(breakLeft % 60).padStart(2, '0')}</Text>{pill('play', 'Molayı bitir', endBreak, true)}</View>
       : <Text style={{ color: colors.mutedForeground, textAlign: 'center', lineHeight: 20 }}>Sadece şu ana odaklan. Mola, bitirme ya da geri dönmek için kilide dokun.</Text>}
     {lockAvailable && !lockOk ? <View style={{ padding: 12, borderRadius: 14, backgroundColor: colors.secondary }}><Text style={{ color: colors.destructive, fontWeight: '800', textAlign: 'center' }}>Uygulama kilidi şu an çalışmıyor</Text><Text style={{ color: colors.mutedForeground, fontSize: 12, textAlign: 'center', marginTop: 4, lineHeight: 17 }}>{missing.length ? `Eksik izin: ${missing.join(', ')}. Ayarlar > İzinler bölümünden aç.` : 'Telefon uygulamayı arka planda durdurmuş olabilir. Pil kısıtlamasını kapatıp yeniden başlat.'}</Text></View> : null}
-    {lockAvailable && lockOk && noApps ? <Pressable onPress={() => router.push('/locked-apps' as never)} style={{ padding: 12, borderRadius: 14, backgroundColor: colors.warnSoft }}><Text style={{ color: colors.warning, fontWeight: '800', textAlign: 'center' }}>Kilitlenecek uygulama seçilmemiş. Seçmek için dokun.</Text></Pressable> : null}
+    {lockAvailable && lockOk && noApps ? <Pressable onPress={() => router.push('/locked-apps' as never)} style={{ padding: 12, borderRadius: 14, backgroundColor: colors.warnSoft }}><Text style={{ color: colors.warning, fontWeight: '800', textAlign: 'center' }}>Kilitlenecek uygulama kalmadı (hepsini açık bıraktın). Değiştirmek için dokun.</Text></Pressable> : null}
     {!lockAvailable ? <Text style={{ color: colors.mutedForeground, fontSize: 12, textAlign: 'center' }}>Uygulama kilidi yalnızca yüklenen Android uygulamasında çalışır.</Text> : null}
     {lesson?.spotifyTrackUri && spotify.connected ? pill('music', 'Müziği tekrar çal', () => playUri(lesson.spotifyTrackUri!).catch(() => undefined)) : null}
 

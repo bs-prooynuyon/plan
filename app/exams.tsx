@@ -8,8 +8,7 @@ import { usePlanim } from '@/context/PlanimContext';
 import { QUESTION_COUNTS, SUBJECTS, Subject } from '@/types/planim';
 import { useColors } from '@/hooks/useColors';
 import { keepFile } from '@/lib/files';
-import { aiErrorText, analyzeExamPdf } from '@/lib/ai';
-import { cloudConfigured } from '@/lib/cloud';
+import { aiErrorText, analyzeExamPdf, hasAiKey } from '@/lib/ai';
 import { ActivityIndicator } from 'react-native';
 
 export default function ExamsScreen() {
@@ -35,7 +34,7 @@ export default function ExamsScreen() {
       if (asset.size && asset.size > 20 * 1024 * 1024) return Alert.alert('PDF çok büyük', 'En fazla 20 MB’lık bir PDF analiz edilebilir.');
       const uri = await keepFile(asset.uri, 'pdf');
       setPdfUri(uri); setAdding(true); setTitle(asset.name.replace(/\.pdf$/i, '')); setAnalysis(undefined); setWeak([]);
-      if (!cloudConfigured()) { Alert.alert('PDF eklendi', 'Yapay zeka henüz kurulmadığı için netleri elle gir. PDF denemeyle birlikte saklanır.'); return; }
+      if (!(await hasAiKey())) { Alert.alert('PDF eklendi', 'Yapay zeka için Ayarlar > Yapay zeka bölümüne Gemini anahtarını ekleyebilirsin. Şimdilik netleri elle gir; PDF denemeyle birlikte saklanır.'); return; }
       setBusy(true);
       try {
         const FS = require('expo-file-system/legacy');

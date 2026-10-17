@@ -26,6 +26,7 @@ Her şey `config.ts` içinde (Spotify Client ID, yaygın uygulama listesi, arkad
 Aydınlatma metni: `constants/privacy.ts`.
 
 ## v9 notları
-- Hesap (e-posta kodu), cihazlar arası eşitleme ve yapay zeka için `SUPABASE_KURULUM.md` dosyasını izle; `config.ts` içindeki `supabaseUrl` / `supabaseAnonKey` dolunca açılır. Boşsa uygulama hesapsız çalışır.
-- Çalışma modu artık kilit simgesinden (üst çubuk ve Odak sekmesi) doğrudan başlar. Kilitlenecek uygulama seçilmemişse telefondaki yaygın dikkat dağıtıcılar otomatik kilitlenir.
+- Hesap (e-posta kodu) ve cihazlar arası eşitleme için `SUPABASE_KURULUM.md` dosyasını izle; `config.ts` içindeki `supabaseUrl` / `supabaseAnonKey` dolunca açılır. Boşsa uygulama hesapsız çalışır.
+- Yapay zeka: Ayarlar > Yapay zeka bölümüne kendi Gemini API anahtarını ekle (https://aistudio.google.com/apikey). Hesap ya da sunucu gerekmez; anahtar yalnızca telefonda saklanır.
+- Çalışma modu artık kilit simgesinden (üst çubuk ve Odak sekmesi) doğrudan başlar. Kilit mantığı: "Açık kalacak" olarak seçtiklerin ve telefon / mesajlar / müzik dışındaki her uygulama ders sırasında kilitlenir.
 - Kotlin tarafına `setBreak` (mola) eklendi: APK'yı yeniden derlemek gerekir.

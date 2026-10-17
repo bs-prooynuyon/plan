@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { AccountCard } from '@/components/AccountCard';
+import { AiKeyCard } from '@/components/AiKeyCard';
 import { Avatar } from '@/components/Avatar';
 import { pickProfilePhoto } from '@/lib/photo';
 import { Feather } from '@expo/vector-icons';
@@ -19,8 +20,9 @@ const STEPS = [
   { eyebrow: 'PROFİLİN', title: 'Seni tanıyalım.', text: 'Adın, fotoğrafın ve hedeflerin; hepsini sonra Profil’den değiştirebilirsin.' },
   { eyebrow: 'MÜZİK', title: 'Derse müzikle başla.', text: 'Spotify hesabını bağla; ders başlayınca seçtiğin playlist veya şarkı açılsın. İstersen sonra da bağlayabilirsin.' },
   { eyebrow: 'İZİNLER', title: 'Alarm ve çalışma modu.', text: 'Dersin tam vaktinde çalması ve kilidin çalışması için birkaç izne ihtiyacımız var.' },
-  { eyebrow: 'KİLİT', title: 'Ders sırasında hangi uygulamalar kapalı olsun?', text: 'Bir kere seç, her derste yeniden sormayız. Sonra Ayarlar\'dan değiştirebilirsin.' },
+  { eyebrow: 'KİLİT', title: 'Ders sırasında hangi uygulamalar açık kalsın?', text: 'Seçtiklerin dışındaki her uygulama ders sırasında kilitlenir. Bir kere seç, her derste yeniden sormayız. Sonra Ayarlar\'dan değiştirebilirsin.' },
   { eyebrow: 'ÖZETLER', title: 'Özetler ne zaman gelsin?', text: 'Haftalık ve aylık özet için gün seç, istersen velinin numarasını ekle. Hepsini sonra da değiştirebilirsin.' },
+  { eyebrow: 'YAPAY ZEKA', title: 'İstersen yapay zeka yardım etsin.', text: 'Deneme PDF’ini okuyup netlerini ve zayıf konularını çıkarır, sorularına öğretmen gibi cevap verir. İstemezsen atlayabilirsin, sonra Ayarlar’dan da ekleyebilirsin.' },
 ];
 
 export function Onboarding() {
@@ -95,6 +97,11 @@ export function Onboarding() {
 
       {step === 5 ? <View style={{ gap: 12 }}>
         <Card><ReportSettings /></Card>
+        <PrimaryButton label="Devam" onPress={() => setStep(6)} icon="arrow-right" />
+      </View> : null}
+
+      {step === 6 ? <View style={{ gap: 12 }}>
+        <AiKeyCard />
         <PrimaryButton label="Planımı oluşturalım" onPress={finish} icon="check" />
       </View> : null}
 

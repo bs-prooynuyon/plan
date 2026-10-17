@@ -8,7 +8,7 @@ import { useColors } from '@/hooks/useColors';
 export default function LockedAppsScreen() {
   const colors = useColors();
   return <Screen>
-    <Header eyebrow="Çalışma modu" title="Hangi uygulamalar kilitlensin?" subtitle="Bir kere seç, uygulama hatırlasın." />
+    <Header eyebrow="Çalışma modu" title="Hangi uygulamalar açık kalsın?" subtitle="Seçmediğin her uygulama ders sırasında kilitlenir. Bir kere seç, uygulama hatırlasın." />
     <LockedAppsEditor />
     <Pressable onPress={() => router.back()}><Text style={{ color: colors.primary, fontWeight: '700', textAlign: 'center' }}>Tamam</Text></Pressable>
   </Screen>;
