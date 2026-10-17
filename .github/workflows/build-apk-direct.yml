@@ -5,6 +5,11 @@ on:
   push:
     branches: ["main"]
 
+# Yeni bir push gelirse eski (hâlâ süren) derlemeyi iptal et; yalnızca en yenisi derlensin.
+concurrency:
+  group: build-apk-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
