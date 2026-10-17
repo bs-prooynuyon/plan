@@ -17,6 +17,8 @@ export function LessonScheduler() {
   const handled = useRef<string | null>(null);
   const lastResponse = Notifications.useLastNotificationResponse();
 
+  useEffect(() => { if (lockAvailable) { try { PlanimLock.setAlarmSound(settings.alarmSoundUri); } catch { /* yoksay */ } } }, [settings.alarmSoundUri]);
+
   useEffect(() => {
     if (lockAvailable) {
       try {

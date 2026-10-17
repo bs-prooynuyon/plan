@@ -1,8 +1,8 @@
 import { Feather } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
+import { pickProfilePhoto } from '@/lib/photo';
 import { router } from 'expo-router';
 import React from 'react';
-import { Alert, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { Avatar } from '@/components/Avatar';
 import { Card, PrimaryButton, Screen, styles } from '@/components/PlanimUI';
 import { ThemePicker } from '@/components/ThemePicker';
@@ -23,15 +23,7 @@ export default function ProfileScreen() {
   const colors = useColors();
   const { settings, updateSettings, sessions, exams, topics } = usePlanim();
 
-  const pickPhoto = async () => {
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.3, base64: true });
-      const asset = result.canceled ? null : result.assets[0];
-      if (asset?.base64) updateSettings({ profilePhoto: `data:image/jpeg;base64,${asset.base64}` });
-    } catch {
-      Alert.alert('Fotoğraf seçilemedi', 'Tekrar deneyebilirsin.');
-    }
-  };
+  const pickPhoto = async () => { const photo = await pickProfilePhoto(); if (photo) updateSettings({ profilePhoto: photo }); };
 
   const focusMinutes = sessions.reduce((sum, item) => sum + item.durationMinutes, 0);
   const learned = topics.filter((topic) => topic.status === 'learned').length;
@@ -43,7 +35,7 @@ export default function ProfileScreen() {
         <View style={{ position: 'absolute', right: 0, bottom: 0, width: 34, height: 34, borderRadius: 17, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }}><Feather name="camera" size={16} color={colors.primaryForeground} /></View>
       </Pressable>
       <Text style={[styles.title, { color: colors.foreground, textAlign: 'center' }]}>{settings.studentName || 'Profilim'}</Text>
-      <Text style={{ color: colors.mutedForeground, fontSize: 13 }}>{settings.targetSchool || 'Hedef lise belirlenmedi'}{settings.targetNet ? ` · hedef ${settings.targetNet} net` : ''}</Text>
+      <Text style={{ color: colors.mutedForeground, fontSize: 13 }}>{settings.email ? `${settings.email} · ` : ''}{settings.targetSchool || 'Hedef lise belirlenmedi'}{settings.targetNet ? ` · hedef ${settings.targetNet} net` : ''}</Text>
     </View>
     <View style={{ flexDirection: 'row', gap: 10 }}>
       <Stat label="LGS'YE GÜN" value={settings.examDate ? String(daysUntil(settings.examDate)) : '–'} />

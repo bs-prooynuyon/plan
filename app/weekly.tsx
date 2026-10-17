@@ -7,7 +7,7 @@ import { Card, Header, PrimaryButton, Screen, styles } from '@/components/Planim
 import { ReportSettings } from '@/components/ReportSettings';
 import { usePlanim } from '@/context/PlanimContext';
 import { useColors } from '@/hooks/useColors';
-import { buildReportHtml, currentRange, ReportKind, reportFileName } from '@/lib/report';
+import { buildReportHtml, currentRange, ReportKind, reportFileName, studiedTopicStats } from '@/lib/report';
 import { whatsappUrl } from '@/lib/whatsapp';
 
 /** Dosyayı 17-23_eylul_haftalik_ozet.pdf gibi adlandırır. Başaramazsa özgün dosyayı döndürür. */
@@ -27,6 +27,7 @@ export default function WeeklyScreen() {
   const colors = useColors();
   const { exams, topics, sessions, questionLogs, settings } = usePlanim();
   const [busy, setBusy] = useState<ReportKind | null>(null);
+  const stats = studiedTopicStats(questionLogs, topics, currentRange('weekly'));
   const html = (kind: ReportKind) => buildReportHtml({ kind, studentName: settings.studentName, primary: colors.primary, sessions, exams, topics, logs: questionLogs });
 
   const preview = async (kind: ReportKind) => {
@@ -58,6 +59,14 @@ export default function WeeklyScreen() {
 
   return <Screen>
     <Header eyebrow="Emeğine dışarıdan bak" title="Özetler" subtitle="Haftalık ve aylık özetini önce kendin gör, sonra velinle paylaş." />
+    <Card>
+      <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Bu hafta çalıştığın konular</Text>
+      {stats.length === 0 ? <Text style={{ color: colors.mutedForeground, fontSize: 13 }}>Bu hafta henüz çalışılan konu girilmedi. Ders bitince çalıştığın konuları ve soru sayılarını yazabilirsin.</Text> : null}
+      {stats.map((item) => <View key={item.key} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <View style={{ flex: 1 }}><Text style={{ color: colors.foreground, fontWeight: '800', fontSize: 14 }}>{item.title}</Text><Text style={{ color: colors.mutedForeground, fontSize: 11 }}>{item.subject}</Text></View>
+        {item.solved ? <Text style={{ fontSize: 12, fontWeight: '800' }}><Text style={{ color: colors.success }}>{item.correct} D</Text><Text style={{ color: colors.mutedForeground }}> · </Text><Text style={{ color: colors.destructive }}>{item.wrong} Y</Text><Text style={{ color: colors.mutedForeground }}> · {item.blank} B · {item.solved} soru</Text></Text> : <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>soru girilmedi</Text>}
+      </View>)}
+    </Card>
     {block('weekly', 'Bu haftanın özeti')}
     {block('monthly', 'Bu ayın özeti')}
     <Card>

@@ -25,6 +25,25 @@ export function reportFileName(kind: ReportKind, start: Date, end: Date) {
     : `${MONTHS_ASCII[end.getMonth()]}_aylik_ozet.pdf`;
 }
 
+export interface TopicStat { key: string; subject: string; title: string; correct: number; wrong: number; blank: number; solved: number }
+
+/** Aralıktaki kayıtlardan, çalışılan her konunun soru dökümünü çıkarır (eksik konular dahil değildir). */
+export function studiedTopicStats(logs: QuestionLog[], topics: Topic[], range: { start: Date; end: Date }): TopicStat[] {
+  const map = new Map<string, TopicStat>();
+  const touch = (key: string, subject: string, title: string) => { let cur = map.get(key); if (!cur) { cur = { key, subject, title, correct: 0, wrong: 0, blank: 0, solved: 0 }; map.set(key, cur); } return cur; };
+  logs.filter((log) => { const d = new Date(log.date); return d >= range.start && d <= range.end; }).forEach((log) => {
+    if (log.entries?.length) {
+      log.entries.forEach((entry) => {
+        const cur = touch(entry.topicId === 'general' ? `general|${log.subject}` : entry.topicId, log.subject, entry.topicId === 'general' ? 'Genel soru çözümü' : entry.title);
+        cur.correct += entry.correct; cur.wrong += entry.wrong; cur.blank += entry.blank; cur.solved += entry.correct + entry.wrong + entry.blank;
+      });
+    } else {
+      log.topicIds.forEach((id) => { const topic = topics.find((t) => t.id === id); if (topic) touch(id, topic.subject, topic.title); });
+    }
+  });
+  return [...map.values()].sort((a, b) => a.subject.localeCompare(b.subject, 'tr') || b.solved - a.solved);
+}
+
 export interface ReportInput {
   kind: ReportKind;
   studentName: string;
@@ -49,20 +68,20 @@ export function buildReportHtml({ kind, studentName, primary, sessions, exams, t
   const label = (index: number) => kind === 'weekly' ? DAYS_TR[index] : String(index + 1);
 
   const rangeLogs = logs.filter((item) => inRange(item.date));
-  const bySubject = new Map<string, { solved: number; correct: number; wrong: number }>();
-  rangeLogs.forEach((log) => { const cur = bySubject.get(log.subject) ?? { solved: 0, correct: 0, wrong: 0 }; bySubject.set(log.subject, { solved: cur.solved + log.solved, correct: cur.correct + log.correct, wrong: cur.wrong + log.wrong }); });
-  const totals = [...bySubject.values()].reduce((a, b) => ({ solved: a.solved + b.solved, correct: a.correct + b.correct, wrong: a.wrong + b.wrong }), { solved: 0, correct: 0, wrong: 0 });
-  const studiedIds = new Set(rangeLogs.flatMap((log) => log.topicIds));
-  const studied = topics.filter((item) => studiedIds.has(item.id));
-  const missing = topics.filter((item) => item.status === 'missing');
+  const bySubject = new Map<string, { solved: number; correct: number; wrong: number; blank: number }>();
+  rangeLogs.forEach((log) => { const cur = bySubject.get(log.subject) ?? { solved: 0, correct: 0, wrong: 0, blank: 0 }; bySubject.set(log.subject, { solved: cur.solved + log.solved, correct: cur.correct + log.correct, wrong: cur.wrong + log.wrong, blank: cur.blank + (log.blank ?? 0) }); });
+  const totals = [...bySubject.values()].reduce((a, b) => ({ solved: a.solved + b.solved, correct: a.correct + b.correct, wrong: a.wrong + b.wrong, blank: a.blank + b.blank }), { solved: 0, correct: 0, wrong: 0, blank: 0 });
+  const studied = studiedTopicStats(logs, topics, { start, end });
 
   const rangeExams = exams.filter((item) => inRange(`${item.date}T12:00:00`)).map((exam) => ({ exam, net: exam.results.reduce((s, r) => s + r.net, 0), correct: exam.results.reduce((s, r) => s + r.correct, 0), wrong: exam.results.reduce((s, r) => s + r.wrong, 0) })).sort((a, b) => b.net - a.net);
   const examRows = rangeExams.length
     ? rangeExams.map((row, index) => `<tr><td>${index + 1}.</td><td>${esc(row.exam.title)}</td><td>${row.correct} D / ${row.wrong} Y</td><td><b>${row.net.toFixed(1)}</b> net</td></tr>`).join('')
     : '<tr><td colspan="4" class="muted">Bu dönemde deneme eklenmedi.</td></tr>';
   const examTotal = rangeExams.length ? `<div class="muted" style="margin-top:6px">Toplam: ${rangeExams.reduce((s, r) => s + r.correct, 0)} doğru, ${rangeExams.reduce((s, r) => s + r.wrong, 0)} yanlış</div>` : '';
-  const subjectRows = bySubject.size ? [...bySubject.entries()].map(([name, v]) => `<tr><td>${esc(name)}</td><td>${v.solved}</td><td>${v.correct}</td><td>${v.wrong}</td></tr>`).join('') : '<tr><td colspan="4" class="muted">Bu dönemde soru girilmedi.</td></tr>';
-  const list = (items: Topic[]) => items.length ? items.slice(0, 30).map((item) => `<li>${esc(item.title)} <span class="muted">· ${esc(item.subject)}</span></li>`).join('') : '<li class="muted">Henüz konu yok.</li>';
+  const subjectRows = bySubject.size ? [...bySubject.entries()].map(([name, v]) => `<tr><td>${esc(name)}</td><td>${v.solved}</td><td>${v.correct}</td><td>${v.wrong}</td><td>${v.blank}</td></tr>`).join('') : '<tr><td colspan="5" class="muted">Bu dönemde soru girilmedi.</td></tr>';
+  const topicRows = studied.length
+    ? studied.map((t) => `<tr><td>${esc(t.subject)}</td><td>${esc(t.title)}</td><td>${t.solved || '–'}</td><td>${t.solved ? t.correct : '–'}</td><td>${t.solved ? t.wrong : '–'}</td><td>${t.solved ? t.blank : '–'}</td></tr>`).join('')
+    : '<tr><td colspan="6" class="muted">Bu dönemde çalışılan konu girilmedi.</td></tr>';
   const range = kind === 'weekly'
     ? `${start.getDate()} ${MONTHS_TR[start.getMonth()]} – ${end.getDate()} ${MONTHS_TR[end.getMonth()]} ${end.getFullYear()}`
     : `${MONTHS_TR[end.getMonth()]} ${end.getFullYear()}`;
@@ -80,10 +99,10 @@ ul{margin:0;padding-left:18px;font-size:13px;line-height:1.7}
 <h1>${kind === 'weekly' ? 'Haftalık' : 'Aylık'} Özet</h1><div class="muted">${esc(studentName || 'Öğrenci')} · ${range}</div>
 <h2>Çalışma süresi</h2><div class="big">${Math.floor(totalMinutes / 60)} sa ${totalMinutes % 60} dk</div>
 <div class="chart">${bars}</div><div class="muted" style="font-size:11px;margin-top:4px">Günlere göre dakika</div>
-<h2>Çözülen sorular</h2><div><b>${totals.solved}</b> soru · <b>${totals.correct}</b> doğru · <b>${totals.wrong}</b> yanlış</div>
-<table style="margin-top:6px"><tr><th>Ders</th><th>Soru</th><th>Doğru</th><th>Yanlış</th></tr>${subjectRows}</table>
+<h2>Çözülen sorular</h2><div><b>${totals.solved}</b> soru · <b>${totals.correct}</b> doğru · <b>${totals.wrong}</b> yanlış · <b>${totals.blank}</b> boş</div>
+<table style="margin-top:6px"><tr><th>Ders</th><th>Soru</th><th>Doğru</th><th>Yanlış</th><th>Boş</th></tr>${subjectRows}</table>
 <h2>Denemeler (net sıralaması)</h2><table>${examRows}</table>${examTotal}
-<h2>Çalışılan konular (${studied.length})</h2><ul>${list(studied)}</ul>
-<h2>Eksik konular (${missing.length})</h2><ul>${list(missing)}</ul>
+<h2>Çalışılan konular ve çözülen sorular (${studied.length} konu)</h2>
+<table><tr><th>Ders</th><th>Konu</th><th>Soru</th><th>Doğru</th><th>Yanlış</th><th>Boş</th></tr>${topicRows}</table>
 </body></html>`;
 }

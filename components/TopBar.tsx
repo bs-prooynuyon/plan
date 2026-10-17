@@ -22,6 +22,7 @@ export function TopBar() {
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><Feather name="clock" size={13} color={colors.primary} /><Text style={{ color: colors.mutedForeground, fontSize: 12, fontWeight: '700' }}>Bugün {minutesToday(sessions)} dk</Text></View>
       </View>
     </View>
+    <Pressable onPress={() => router.push('/study-mode?minutes=45' as never)} hitSlop={10}><Feather name="lock" size={20} color={colors.primary} /></Pressable>
     <Pressable onPress={() => router.push('/settings')} hitSlop={10}><Feather name="settings" size={20} color={colors.mutedForeground} /></Pressable>
   </View>;
 }

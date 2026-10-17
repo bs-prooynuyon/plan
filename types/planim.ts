@@ -1,3 +1,5 @@
+import type { AccentName } from '@/constants/colors';
+
 export type Subject =
   | 'Türkçe'
   | 'Matematik'
@@ -21,6 +23,15 @@ export interface Lesson {
   topicIds?: string[];
 }
 
+/** Bir konuda çözülen soruların dağılımı. */
+export interface TopicEntry {
+  topicId: string;
+  title: string;
+  correct: number;
+  wrong: number;
+  blank: number;
+}
+
 export interface QuestionLog {
   id: string;
   date: string;
@@ -29,7 +40,11 @@ export interface QuestionLog {
   solved: number;
   correct: number;
   wrong: number;
+  /** Boş bırakılan soru sayısı (eski kayıtlarda yok). */
+  blank?: number;
   topicIds: string[];
+  /** Konu bazlı döküm (eski kayıtlarda yok). */
+  entries?: TopicEntry[];
 }
 
 export interface WrongQuestion {
@@ -64,11 +79,24 @@ export interface SubjectResult {
   net: number;
 }
 
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  text: string;
+}
+
 export interface MockExam {
   id: string;
   date: string;
   title: string;
   results: SubjectResult[];
+  /** Yüklenen deneme PDF'i (varsa). */
+  pdfUri?: string;
+  /** Yapay zekanın PDF'ten çıkardığı kısa analiz. */
+  analysis?: string;
+  /** Yapay zekanın tespit ettiği zayıf konular. */
+  weakTopics?: string[];
+  /** Yapay zeka ile bu deneme hakkındaki sohbet. */
+  chat?: ChatMessage[];
 }
 
 export interface Topic {
@@ -93,7 +121,7 @@ export interface UserSettings {
   targetNet: number;
   netDivisor: number;
   theme: 'system' | 'light' | 'dark';
-  accent: 'pink' | 'blue' | 'green' | 'red';
+  accent: AccentName;
   themeInit: boolean;
   reportDay: number;
   reportTime: string;
@@ -111,6 +139,13 @@ export interface UserSettings {
   friendApps: string[];
   alwaysAllowedApps: string[];
   lockedAppsConfigured: boolean;
+  /** Hesap e-postası (başka cihazdan girişte aynı hesap açılır). */
+  email: string;
+  /** Hesap sahibi bulut hesabına giriş yaptı mı? */
+  signedIn: boolean;
+  /** Ders başlangıç alarmının sesi ('' = telefonun varsayılan alarm sesi). */
+  alarmSoundUri: string;
+  alarmSoundName: string;
 }
 
 export const SUBJECTS: Subject[] = [

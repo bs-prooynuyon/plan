@@ -49,11 +49,11 @@ export function IconButton({ name, onPress, color }: { name: keyof typeof Feathe
   return <Pressable testID={`icon-${name}`} onPress={onPress} hitSlop={10} style={({ pressed }) => [styles.iconButton, { backgroundColor: colors.secondary, opacity: pressed ? 0.65 : 1 }]}><Feather name={name} size={19} color={color ?? colors.foreground} /></Pressable>;
 }
 
-export function Field({ label, value, onChangeText, placeholder, keyboardType = 'default' }: { label: string; value: string; onChangeText: (value: string) => void; placeholder?: string; keyboardType?: 'default' | 'numeric' }) {
+export function Field({ label, value, onChangeText, placeholder, keyboardType = 'default' }: { label: string; value: string; onChangeText: (value: string) => void; placeholder?: string; keyboardType?: 'default' | 'numeric' | 'email' }) {
   const colors = useColors();
   return <View style={{ gap: 7 }}>
     <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>{label}</Text>
-    <TextInput value={value} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor={colors.mutedForeground} keyboardType={keyboardType} style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card }]} />
+    <TextInput value={value} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor={colors.mutedForeground} keyboardType={keyboardType === 'email' ? 'email-address' : keyboardType} autoCapitalize={keyboardType === 'email' ? 'none' : undefined} autoCorrect={keyboardType === 'email' ? false : undefined} style={[styles.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card }]} />
   </View>;
 }
 

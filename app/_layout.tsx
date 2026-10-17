@@ -1,4 +1,3 @@
-import * as Battery from 'expo-battery';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
 import { Platform } from 'react-native';
@@ -35,6 +34,7 @@ function RootLayoutNav() {
     <Stack screenOptions={{ headerBackTitle: 'Geri', headerShown: false }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="exams" />
+      <Stack.Screen name="exam-ai" />
       <Stack.Screen name="wrongs" />
       <Stack.Screen name="friends" />
       <Stack.Screen name="lesson-summary" options={{ gestureEnabled: false }} />
@@ -54,12 +54,9 @@ function NavigationGate() {
   const { settings, hydrated, updateSettings } = usePlanim();
   const colors = useColors();
 
-  // İlk açılışta beyaz tema; telefon güç tasarrufu modundaysa siyah tema ile başla.
+  // İlk açılışta tema telefonun açık/koyu ayarına göre başlar (varsayılan 'system'); kullanıcı sonra değiştirir.
   useEffect(() => {
-    if (!hydrated || settings.themeInit) return;
-    Battery.isLowPowerModeEnabledAsync()
-      .then((low) => updateSettings({ themeInit: true, ...(low ? { theme: 'dark' as const } : {}) }))
-      .catch(() => updateSettings({ themeInit: true }));
+    if (hydrated && !settings.themeInit) updateSettings({ themeInit: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated, settings.themeInit]);
 

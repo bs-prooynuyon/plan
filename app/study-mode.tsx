@@ -3,12 +3,13 @@ import { useKeepAwake } from 'expo-keep-awake';
 import { router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, BackHandler, Pressable, Text, View } from 'react-native';
+import { Alert, BackHandler, Linking, Modal, Pressable, Text, View } from 'react-native';
 import { usePlanim } from '@/context/PlanimContext';
 import { useSpotify } from '@/context/SpotifyContext';
 import { useColors } from '@/hooks/useColors';
 import { CONFIG } from '@/config';
 import { playUri } from '@/lib/spotify';
+import { whatsappUrl } from '@/lib/whatsapp';
 import { lockAvailable, PlanimLock } from '@/modules/planim-lock';
 
 function endTimestamp(endTime: string) {
@@ -18,44 +19,66 @@ function endTimestamp(endTime: string) {
   return end.getTime();
 }
 
+const clock = (seconds: number) => `${String(Math.floor(seconds / 3600)).padStart(2, '0')}:${String(Math.floor((seconds % 3600) / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+
+type Sheet = null | 'choice' | 'break' | 'friends';
+
+/**
+ * Çalışma modu. Ders alarmından ya da kilit simgesinden (süre seçerek) açılır.
+ * Kilit simgesine dokununca: mola / dersi bitirdim / geri dön sorulur.
+ */
 export default function StudyModeScreen() {
   useKeepAwake();
   const colors = useColors();
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const { lessons, addFocusSession, settings } = usePlanim();
+  const { id, minutes } = useLocalSearchParams<{ id?: string; minutes?: string }>();
+  const { lessons, addFocusSession, settings, friends } = usePlanim();
   const spotify = useSpotify();
   const lesson = lessons.find((item) => item.id === id);
   const startedAt = useMemo(() => Date.now(), []);
   const [now, setNow] = useState(Date.now());
   const [lockOk, setLockOk] = useState(true);
   const [missing, setMissing] = useState<string[]>([]);
+  const [noApps, setNoApps] = useState(false);
+  const [sheet, setSheet] = useState<Sheet>(null);
+  const [breakUntil, setBreakUntil] = useState(0);
 
-  const target = lesson ? Math.max(endTimestamp(lesson.endTime), startedAt + 60000) : startedAt;
+  const manualMinutes = Math.max(1, Number(minutes) || 45);
+  const title = lesson?.name ?? 'Çalışma';
+  const target = lesson ? Math.max(endTimestamp(lesson.endTime), startedAt + 60000) : startedAt + manualMinutes * 60000;
   const remaining = Math.max(0, Math.ceil((target - now) / 1000));
+  const breakLeft = Math.max(0, Math.ceil((breakUntil - now) / 1000));
+  const onBreak = breakLeft > 0;
 
   const finish = (save: boolean) => {
     if (lockAvailable) PlanimLock.stopLock();
     if (save) {
-      const minutes = Math.round((Date.now() - startedAt) / 60000);
-      if (minutes >= 1) addFocusSession(minutes);
+      const spent = Math.round((Date.now() - startedAt) / 60000);
+      if (spent >= 1) addFocusSession(spent);
     }
     if (save && lesson) router.replace(`/lesson-summary?id=${lesson.id}` as never);
     else router.replace('/');
   };
 
   useEffect(() => {
-    if (!lockAvailable || !lesson) return;
+    if (!lockAvailable) return;
     const absent: string[] = [];
     if (!PlanimLock.hasUsageAccess()) absent.push('Kullanım erişimi');
     if (!PlanimLock.hasOverlayAccess()) absent.push('Diğer uygulamaların üzerinde göster');
     setMissing(absent);
     if (absent.length) { setLockOk(false); return; }
+    // Kilitlenecek uygulama seçilmemişse, telefonda yüklü yaygın dikkat dağıtıcıları kilitle.
+    let blocked = settings.lockedApps;
+    if (!blocked.length) {
+      const installed = new Set(PlanimLock.getLaunchableApps().map((app) => app.pkg));
+      blocked = CONFIG.commonDistractionApps.map((app) => app.pkg).filter((pkg) => installed.has(pkg));
+    }
+    setNoApps(blocked.length === 0);
     PlanimLock.startLock({
-      blocked: settings.lockedApps,
+      blocked,
       allowed: Array.from(new Set([...settings.alwaysAllowedApps, ...PlanimLock.getEmergencyPackages(), ...CONFIG.musicApps])),
       friend: settings.friendApps.length ? settings.friendApps : CONFIG.friendStudyDefaults,
       endAt: target,
-      lessonName: lesson.name,
+      lessonName: title,
     });
     const check = setInterval(() => setLockOk(PlanimLock.isLockRunning()), 3000);
     return () => clearInterval(check);
@@ -63,7 +86,7 @@ export default function StudyModeScreen() {
   }, []);
 
   useEffect(() => {
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => true);
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => { setSheet('choice'); return true; });
     return () => sub.remove();
   }, []);
 
@@ -73,28 +96,74 @@ export default function StudyModeScreen() {
   }, []);
 
   useEffect(() => {
-    if (lesson && remaining === 0) finish(true);
+    if (remaining === 0) finish(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remaining]);
 
-  const display = `${String(Math.floor(remaining / 3600)).padStart(2, '0')}:${String(Math.floor((remaining % 3600) / 60)).padStart(2, '0')}:${String(remaining % 60).padStart(2, '0')}`;
+  const startBreak = (mins: number) => {
+    const until = Date.now() + mins * 60000;
+    setBreakUntil(until);
+    if (lockAvailable) PlanimLock.setBreak(until);
+    setSheet(null);
+  };
+  const endBreak = () => { setBreakUntil(0); if (lockAvailable) PlanimLock.setBreak(0); };
+
+  const callFriend = (phone: string, name: string) => {
+    if (lockAvailable) PlanimLock.setFriendWindow(Date.now() + 30 * 60000);
+    setSheet(null);
+    Linking.openURL(whatsappUrl(phone, `Hadi birlikte ders çalışalım! Planım'da çalışma modundayım. 📚`)).catch(() => Alert.alert('WhatsApp açılamadı', `${name} ile sohbeti açmak için WhatsApp kurulu olmalı.`));
+  };
+
+  const pill = (icon: keyof typeof Feather.glyphMap, label: string, onPress: () => void, strong = false) => <Pressable onPress={onPress} style={{ flexDirection: 'row', gap: 8, alignItems: 'center', paddingVertical: 12, paddingHorizontal: 18, borderRadius: 16, backgroundColor: strong ? colors.primary : colors.secondary }}>
+    <Feather name={icon} size={16} color={strong ? colors.primaryForeground : colors.primary} />
+    <Text style={{ color: strong ? colors.primaryForeground : colors.primary, fontWeight: '800' }}>{label}</Text>
+  </Pressable>;
+  const sheetButton = (label: string, onPress: () => void, tone: 'primary' | 'plain' | 'danger' = 'plain', icon?: keyof typeof Feather.glyphMap) => <Pressable key={label} onPress={onPress} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 50, borderRadius: 15, backgroundColor: tone === 'primary' ? colors.primary : colors.secondary }}>
+    {icon ? <Feather name={icon} size={17} color={tone === 'primary' ? colors.primaryForeground : tone === 'danger' ? colors.destructive : colors.secondaryForeground} /> : null}
+    <Text style={{ color: tone === 'primary' ? colors.primaryForeground : tone === 'danger' ? colors.destructive : colors.secondaryForeground, fontWeight: '800', fontSize: 15 }}>{label}</Text>
+  </Pressable>;
 
   return <View style={{ flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center', padding: 28, gap: 14 }}>
     <StatusBar hidden />
-    <Feather name="lock" size={30} color={colors.primary} />
-    <Text style={{ color: colors.primary, fontWeight: '800', letterSpacing: 1.4, fontSize: 12 }}>ÇALIŞMA MODU</Text>
-    <Text style={{ color: colors.foreground, fontSize: 32, fontFamily: 'Georgia', fontWeight: '700', textAlign: 'center' }}>{lesson?.name ?? 'Ders'}</Text>
-    <Text style={{ color: colors.foreground, fontSize: 56, fontWeight: '800', letterSpacing: 2 }}>{display}</Text>
-    <Text style={{ color: colors.mutedForeground, textAlign: 'center', lineHeight: 20 }}>Sadece şu ana odaklan. Ders bitince kilit kendiliğinden kalkar.</Text>
-    {lockAvailable && !lockOk ? <View style={{ padding: 12, borderRadius: 14, backgroundColor: colors.secondary }}><Text style={{ color: colors.destructive, fontWeight: '800', textAlign: 'center' }}>Uygulama kilidi şu an çalışmıyor</Text><Text style={{ color: colors.mutedForeground, fontSize: 12, textAlign: 'center', marginTop: 4, lineHeight: 17 }}>{missing.length ? `Eksik izin: ${missing.join(', ')}. Ayarlar > İzinler bölümünden aç.` : 'Telefon uygulamayı arka planda durdurmuş olabilir. Pil kısıtlamasını kapatıp dersi yeniden başlat.'}</Text></View> : null}
-    {lesson?.spotifyTrackUri && spotify.connected ? <Pressable onPress={() => playUri(lesson.spotifyTrackUri!).catch(() => undefined)} style={{ flexDirection: 'row', gap: 8, alignItems: 'center', paddingVertical: 10, paddingHorizontal: 16, borderRadius: 14, backgroundColor: colors.card }}><Feather name="music" size={16} color={colors.success} /><Text style={{ color: colors.success, fontWeight: '800' }}>Müziği tekrar çal</Text></Pressable> : null}
-    {lockAvailable ? <Pressable onPress={() => { PlanimLock.setFriendWindow(Date.now() + 30 * 60000); Alert.alert('Arkadaşınla çalışma açık', 'Seçtiğin arkadaş uygulamaları 30 dakika açık. Diğerleri kilitli kalır.'); }} style={{ flexDirection: 'row', gap: 8, alignItems: 'center', paddingVertical: 10, paddingHorizontal: 16, borderRadius: 14, backgroundColor: colors.secondary }}><Feather name="users" size={16} color={colors.primary} /><Text style={{ color: colors.primary, fontWeight: '800' }}>Arkadaşımla çalışıyorum</Text></Pressable> : null}
-    <Pressable
-      delayLongPress={CONFIG.earlyFinishHoldMs}
-      onLongPress={() => Alert.alert('Erken bitirelim mi?', 'Çalışma modundan çıkılacak.', [{ text: 'Devam et', style: 'cancel' }, { text: 'Bitir', style: 'destructive', onPress: () => finish(true) }])}
-      style={{ position: 'absolute', bottom: 40, paddingVertical: 12, paddingHorizontal: 20 }}
-    >
-      <Text style={{ color: colors.mutedForeground, fontSize: 12, fontWeight: '700' }}>Erken bitirmek için basılı tut</Text>
+    {pill('users', 'Arkadaşımı çağır', () => setSheet('friends'))}
+    <Pressable onPress={() => setSheet('choice')} hitSlop={14} style={{ width: 76, height: 76, borderRadius: 38, backgroundColor: onBreak ? colors.warnSoft : colors.accent, alignItems: 'center', justifyContent: 'center' }}>
+      <Feather name={onBreak ? 'coffee' : 'lock'} size={32} color={onBreak ? colors.warning : colors.primary} />
     </Pressable>
+    <Text style={{ color: colors.primary, fontWeight: '800', letterSpacing: 1.4, fontSize: 12 }}>{onBreak ? 'MOLA' : 'ÇALIŞMA MODU'}</Text>
+    <Text style={{ color: colors.foreground, fontSize: 32, fontFamily: 'Georgia', fontWeight: '700', textAlign: 'center' }}>{title}</Text>
+    <Text style={{ color: colors.foreground, fontSize: 56, fontWeight: '800', letterSpacing: 2 }}>{clock(remaining)}</Text>
+    {onBreak ? <View style={{ alignItems: 'center', gap: 10 }}><Text style={{ color: colors.warning, fontWeight: '800', fontSize: 16 }}>Mola bitmesine {Math.floor(breakLeft / 60)}:{String(breakLeft % 60).padStart(2, '0')}</Text>{pill('play', 'Molayı bitir', endBreak, true)}</View>
+      : <Text style={{ color: colors.mutedForeground, textAlign: 'center', lineHeight: 20 }}>Sadece şu ana odaklan. Mola, bitirme ya da geri dönmek için kilide dokun.</Text>}
+    {lockAvailable && !lockOk ? <View style={{ padding: 12, borderRadius: 14, backgroundColor: colors.secondary }}><Text style={{ color: colors.destructive, fontWeight: '800', textAlign: 'center' }}>Uygulama kilidi şu an çalışmıyor</Text><Text style={{ color: colors.mutedForeground, fontSize: 12, textAlign: 'center', marginTop: 4, lineHeight: 17 }}>{missing.length ? `Eksik izin: ${missing.join(', ')}. Ayarlar > İzinler bölümünden aç.` : 'Telefon uygulamayı arka planda durdurmuş olabilir. Pil kısıtlamasını kapatıp yeniden başlat.'}</Text></View> : null}
+    {lockAvailable && lockOk && noApps ? <Pressable onPress={() => router.push('/locked-apps' as never)} style={{ padding: 12, borderRadius: 14, backgroundColor: colors.warnSoft }}><Text style={{ color: colors.warning, fontWeight: '800', textAlign: 'center' }}>Kilitlenecek uygulama seçilmemiş. Seçmek için dokun.</Text></Pressable> : null}
+    {!lockAvailable ? <Text style={{ color: colors.mutedForeground, fontSize: 12, textAlign: 'center' }}>Uygulama kilidi yalnızca yüklenen Android uygulamasında çalışır.</Text> : null}
+    {lesson?.spotifyTrackUri && spotify.connected ? pill('music', 'Müziği tekrar çal', () => playUri(lesson.spotifyTrackUri!).catch(() => undefined)) : null}
+
+    <Modal visible={sheet !== null} transparent animationType="fade" onRequestClose={() => setSheet(null)}>
+      <Pressable onPress={() => setSheet(null)} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+        <Pressable style={{ backgroundColor: colors.card, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 20, gap: 10 }}>
+          {sheet === 'choice' ? <>
+            <Text style={{ color: colors.foreground, fontSize: 20, fontWeight: '800', fontFamily: 'Georgia' }}>Ne yapmak istiyorsun?</Text>
+            {sheetButton('Mola vereceğim', () => setSheet('break'), 'plain', 'coffee')}
+            {sheetButton('Dersi bitirdim', () => { setSheet(null); finish(true); }, 'plain', 'check-circle')}
+            {sheetButton('Geri dön, çalışmaya devam', () => setSheet(null), 'primary', 'arrow-left')}
+          </> : null}
+          {sheet === 'break' ? <>
+            <Text style={{ color: colors.foreground, fontSize: 20, fontWeight: '800', fontFamily: 'Georgia' }}>Mola ne kadar olsun?</Text>
+            <Text style={{ color: colors.mutedForeground, fontSize: 13 }}>Mola boyunca kilit kalkar, süre bitince kendiliğinden geri döner.</Text>
+            <View style={{ flexDirection: 'row', gap: 8 }}>{[5, 10, 15].map((m) => <View key={m} style={{ flex: 1 }}>{sheetButton(`${m} dk`, () => startBreak(m), 'plain')}</View>)}</View>
+            {sheetButton('Geri', () => setSheet('choice'), 'plain', 'arrow-left')}
+          </> : null}
+          {sheet === 'friends' ? <>
+            <Text style={{ color: colors.foreground, fontSize: 20, fontWeight: '800', fontFamily: 'Georgia' }}>Arkadaşını çağır</Text>
+            <Text style={{ color: colors.mutedForeground, fontSize: 13 }}>WhatsApp sohbeti açılır; 30 dakika boyunca arkadaş uygulamaların kilitli kalmaz.</Text>
+            {friends.length === 0 ? <Text style={{ color: colors.mutedForeground }}>Henüz arkadaş eklenmedi.</Text> : null}
+            {friends.map((friend) => sheetButton(friend.name, () => callFriend(friend.phone, friend.name), 'plain', 'message-circle'))}
+            {sheetButton('Arkadaş ekle', () => { setSheet(null); router.push('/friends'); }, 'plain', 'user-plus')}
+            {sheetButton('Kapat', () => setSheet(null), 'primary')}
+          </> : null}
+        </Pressable>
+      </Pressable>
+    </Modal>
   </View>;
 }
