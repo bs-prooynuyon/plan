@@ -4,15 +4,15 @@
  */
 export const CONFIG = {
   /**
-   * Hesap (e-posta ile giriş) + cihazlar arası eşitleme için Supabase bilgileri (SUPABASE_KURULUM.md).
-   * Boş bırakılırsa uygulama hesapsız (yalnızca bu telefonda) çalışır.
+   * Hesap + cihazlar arası eşitleme + yapay zeka için Supabase bilgileri (SUPABASE_KURULUM.md).
+   * Boş bırakılırsa uygulama hesapsız (yalnızca bu telefonda) çalışır, yapay zeka kapalı kalır.
    */
   supabaseUrl: '',
   supabaseAnonKey: '',
-  /** Eski Supabase yapay zeka fonksiyonu adı (artık kullanılmıyor; yapay zeka Gemini anahtarıyla çalışır). */
+  /** Supabase Edge Function adı (artık kullanılmıyor; yapay zeka Gemini anahtarıyla çalışır). */
   aiFunction: 'planim-ai',
 
-  /** Yapay zeka (Gemini) modeli. Anahtarı kullanıcı Ayarlar > Yapay zeka'dan kendisi ekler. */
+  /** Yapay zeka: öğrenci kendi Gemini API anahtarını Ayarlar > Yapay zeka'ya yazar. Model çalışmazsa 'gemini-flash-latest' denenir. */
   geminiModel: 'gemini-3.8-flash',
 
   /** Spotify Developer Dashboard > Client ID. Boş bırakılırsa uygulama bağlarken ister. */
